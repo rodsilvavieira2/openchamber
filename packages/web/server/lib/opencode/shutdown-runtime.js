@@ -41,6 +41,7 @@ export const createGracefulShutdownRuntime = (dependencies) => {
     getRelayService,
     getRelayReconcileTimer,
     getSpacesHost = () => null,
+    getAcpRuntime = () => null,
   } = dependencies;
 
   let shutdownPromise = null;
@@ -90,6 +91,7 @@ export const createGracefulShutdownRuntime = (dependencies) => {
       () => messageQueueRuntime?.stop?.(),
       () => messageSearchRuntime?.stop?.(),
       () => scheduledTasksRuntime?.stop?.(),
+      () => getAcpRuntime()?.teardown?.(),
       stopAllGuestServices,
     ];
     for (const cleanup of cleanupOperations) {

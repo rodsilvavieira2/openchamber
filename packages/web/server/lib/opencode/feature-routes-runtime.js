@@ -32,6 +32,7 @@ import { registerPluginRoutes } from './plugin-routes.js';
 import { getNpmInfo, clearCache as clearNpmCache } from './npm-registry.js';
 import { parseNpmSpec, parsePathSpec, isExactSemver } from './plugin-spec.js';
 import { registerOpenCodeRoutes } from './routes.js';
+import { createAcpRouteRuntime } from '../acp/routes.js';
 import { getProviderSources, removeProviderConfig, upsertProviderConfig } from './providers.js';
 import { getAgentSources, getAgentConfig, getAgentPermissions, createAgent, updateAgent, deleteAgent } from './agents.js';
 import { getCommandSources, getCommandConfig, createCommand, updateCommand, deleteCommand } from './commands.js';
@@ -63,6 +64,8 @@ export const createFeatureRoutesRuntime = (dependencies) => {
   const {
     clientReloadDelayMs,
   } = dependencies;
+
+  const acpRouteRuntime = createAcpRouteRuntime();
 
   let quotaProviders = null;
   const getQuotaProviders = async () => {
@@ -151,7 +154,11 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       messageQueueRuntime,
       routingRuntime,
       openchamberVersion,
+      globalEventHub,
     } = routeDependencies;
+
+    // ACP routes must be registered before the generic OpenCode proxy.
+    acpRouteRuntime.registerRoutes(app, { hub: globalEventHub });
 
     registerSettingsUtilityRoutes(app, {
       readCustomThemesFromDisk,
@@ -386,5 +393,6 @@ export const createFeatureRoutesRuntime = (dependencies) => {
 
   return {
     registerRoutes,
+    acpRouteRuntime,
   };
 };
