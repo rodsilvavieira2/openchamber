@@ -4,6 +4,11 @@ Branch: `feature/acp-runtime` (fork `rodsilvavieira2/openchamber`, upstream `ope
 Scope: issue #2010 (Must first, then Should), MVP = OpenCode + Codex + Claude + Custom ACP behind a flag.
 Reference PoC: `TomzxForks/openchamber` branch `feat/2010-acp-support` (consulted, not copied).
 SDK pins at time of writing: `@opencode/client` / `@opencode/schema` `2.0.21` (OpenCode 2.x only).
+ACP SDK: `@agentclientprotocol/sdk` `1.7.0` (server-only, `packages/web`).
+
+Progress: M1 `AgentClient` + OpenCode adapter landed (no behavior change);
+M2 process manager, feature flag, SDK connection, and fake-agent handshake
+landed. M3 (translation into sync events) onward is pending.
 
 ## 1. Current OpenCode flow
 
@@ -271,8 +276,12 @@ merge, remote/HTTP/WS ACP, cloud registry, auto-install, complex worktree orches
 
 ## 13. Open questions
 
-- OQ1: does `@agentclientprotocol/sdk` `ClientSideConnection` accept our managed
-  stdio child, or must we feed it managed streams? (Resolve at M2 start.)
+- OQ1 (resolved, M2): the SDK does **not** spawn. `@agentclientprotocol/sdk`
+  exposes `ndJsonStream(output, input)` over our own
+  `WritableStream`/`ReadableStream`, so the managed child's `stdin`/`stdout`
+  (`Writable.toWeb`/`Readable.toWeb`) feed the SDK directly and the process
+  manager keeps full ownership of spawn, registry, and teardown. Verified by the
+  fake-agent integration test in `packages/web/server/lib/acp/__tests__`.
 - Telemetry/observability sinks for ACP events (resolve at M7).
 - Selection UX: settings section (PoC choice) vs sidebar dropdown (confirm pre-M6).
 - Skills to load before implementation edits: `isolated-space-boundary` (agent

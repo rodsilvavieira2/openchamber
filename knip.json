@@ -35,6 +35,7 @@
         "src/sw.ts",
         "bin/**/*.{test,spec}.{js,cjs,mjs}",
         "server/**/*.{test,spec}.{js,cjs,mjs}",
+        "server/**/__tests__/**/*.{js,cjs,mjs}",
         "src/**/*.{test,spec}.{ts,tsx}"
       ],
       "project": [
