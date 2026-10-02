@@ -62,6 +62,7 @@ import {
   type Vcs,
 } from "./model"
 import { ascendingId } from "./ids"
+import type { AgentCapabilities, AgentClient } from "@/lib/agent/types"
 import { runningShellFromWire, shellCancellationNote, type RunningShell } from "./background-shell"
 import { toJsonRecord } from "./json"
 import { deniesAnyProvider, mergeConfigDocuments, projectAgent, projectMessages, projectProject, projectSession, projectVcs } from "./projection"
@@ -497,7 +498,9 @@ const dedupeById = <T extends { id: string }>(lists: T[][]): T[] => {
 // Service
 // ---------------------------------------------------------------------------
 
-class OpencodeService {
+class OpencodeService implements AgentClient {
+  /** This adapter serves OpenCode sessions; see `lib/agent/types`. */
+  readonly backend = "opencode" as const
   private client: OpenCodeClient
   private baseUrl: string
   private scopedClients: Map<string, OpenCodeClient> = new Map()
@@ -532,6 +535,11 @@ class OpencodeService {
 
   getBaseUrl(): string {
     return this.baseUrl
+  }
+
+  /** OpenCode turns are cancellable; ACP reports the rest after `initialize`. */
+  capabilities(): AgentCapabilities {
+    return { canCancel: true }
   }
 
   reconnectToRuntimeBaseUrl(): void {
