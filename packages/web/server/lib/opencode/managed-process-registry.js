@@ -53,13 +53,13 @@ import { promisify } from 'node:util';
 
 const defaultExecFileAsync = promisify(execFile);
 
-const resolveRegistryDir = () => {
+const resolveDefaultRegistryDir = () => {
   const override = process.env.OPENCHAMBER_MANAGED_PROCESS_REGISTRY;
   if (override && override.trim()) return override.trim();
   return path.join(os.homedir(), '.config', 'openchamber', 'managed-opencode');
 };
 
-const entryFilePath = (pid) => path.join(resolveRegistryDir(), `${pid}.json`);
+const entryFilePath = (dir, pid) => path.join(dir, `${pid}.json`);
 
 const isPidAlive = (pid) => {
   if (!Number.isInteger(pid)) return false;
@@ -88,8 +88,20 @@ const commandIdentifiesOurServer = (command, entry) => {
  * Build the registry API over injectable filesystem and child-process
  * dependencies. Production callers use the default instance exported below;
  * tests pass their own `fs`/`execFileAsync` instead of mocking node builtins.
+ *
+ * `registryDir` and `identifyCommand` let a different managed child reuse the
+ * same safety model (the ACP agent process manager). Both default to the
+ * OpenCode behavior, so existing callers are unchanged.
  */
-export const createManagedProcessRegistry = ({ fs = fsp, execFileAsync = defaultExecFileAsync } = {}) => {
+export const createManagedProcessRegistry = ({
+  fs = fsp,
+  execFileAsync = defaultExecFileAsync,
+  registryDir,
+  identifyCommand = commandIdentifiesOurServer,
+} = {}) => {
+  const resolveRegistryDir = () =>
+    typeof registryDir === 'string' && registryDir.trim() ? registryDir.trim() : resolveDefaultRegistryDir();
+
   const writeEntryFile = async (entry) => {
     const dir = resolveRegistryDir();
     try {
@@ -133,14 +145,15 @@ export const createManagedProcessRegistry = ({ fs = fsp, execFileAsync = default
     return out;
   };
 
-  /** Record an OpenCode process WE spawned so a future run can reap it if orphaned. */
-  const registerManagedProcess = async ({ pid, ownerPid, port, binary, runtime } = {}) => {
+  /** Record a process WE spawned so a future run can reap it if orphaned. */
+  const registerManagedProcess = async ({ pid, ownerPid, port, binary, command, runtime } = {}) => {
     if (!Number.isInteger(pid)) return;
     await writeEntryFile({
       pid,
       ownerPid: Number.isInteger(ownerPid) ? ownerPid : process.pid,
       port: Number.isInteger(port) ? port : null,
       binary: typeof binary === 'string' ? binary : null,
+      command: typeof command === 'string' ? command : null,
       runtime: typeof runtime === 'string' ? runtime : 'web',
       startedAt: new Date().toISOString(),
     });
@@ -150,7 +163,7 @@ export const createManagedProcessRegistry = ({ fs = fsp, execFileAsync = default
   const unregisterManagedProcess = async (pid) => {
     if (!Number.isInteger(pid)) return;
     try {
-      await fs.rm(entryFilePath(pid), { force: true });
+      await fs.rm(entryFilePath(resolveRegistryDir(), pid), { force: true });
     } catch {
       // Best-effort: dropping a missing file is not an error.
     }
@@ -248,7 +261,7 @@ export const createManagedProcessRegistry = ({ fs = fsp, execFileAsync = default
 
     const info = await readUnixProcInfo(entry.pid);
     // Can't verify identity (or it's not our server) → leave it alone.
-    if (!info || !commandIdentifiesOurServer(info.command, entry)) return false;
+    if (!info || !identifyCommand(info.command, entry)) return false;
 
     const orphaned = info.ppid === 1 || ownerGone;
     if (!orphaned) return false; // still owned by a live instance
