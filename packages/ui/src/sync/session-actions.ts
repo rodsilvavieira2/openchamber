@@ -12,6 +12,7 @@ import { useInputStore } from "./input-store"
 import type { ChildStoreManager } from "./child-store"
 import { computeSubtreeIds } from "./scoped-blocking-requests"
 import { opencodeClient, type SyntheticContextInput } from "@/lib/opencode/client"
+import { getActiveAgentClient } from "@/lib/agent/active-client"
 import { toJsonRecord } from "@/lib/opencode/json"
 import { ascendingId } from "@/lib/opencode/ids"
 import { mergeSessionDirectoryMetadata, resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
@@ -443,7 +444,7 @@ export function isSessionBusyNow(sessionId: string): boolean {
 async function abortDescendantIfBusy(sessionId: string, directory: string): Promise<void> {
   if (!isSessionBusyNow(sessionId)) return
   try {
-    await opencodeClient.abortSession(sessionId, directory)
+    await getActiveAgentClient().abortSession(sessionId, directory)
   } catch {
     // ignore abort errors
   }
@@ -956,7 +957,7 @@ export async function createSession(
     // opencodeClient.getDirectory() value and group the session under the
     // wrong project (closes #1637, #2270).
     const effectiveDirectory = directoryOverride ?? dir()
-    const session = await opencodeClient.createSession(
+    const session = await getActiveAgentClient().createSession(
       { title, metadata, model: selection?.model, agent: selection?.agent },
       effectiveDirectory,
     )
@@ -2119,7 +2120,7 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
   // worktree than the UI's current directory could never be aborted).
   const { directory } = dirStoreForSession(sessionId)
   try {
-    await opencodeClient.abortSession(sessionId, directory)
+    await getActiveAgentClient().abortSession(sessionId, directory)
   } catch (error) {
     console.error("[session-actions] abort failed", error)
   }
@@ -2140,7 +2141,7 @@ export async function respondToPermission(
     || resolveDirectoryForBlockingRequest("permission", sessionId, requestId)
     || getSessionDirectory(sessionId)
     || dir()
-  if (await opencodeClient.replyToPermission(sessionId, requestId, response, { directory }) !== true) {
+  if (await getActiveAgentClient().replyToPermission(sessionId, requestId, response, { directory }) !== true) {
     throw new Error("Permission reply failed")
   }
 }
@@ -2154,7 +2155,7 @@ export async function dismissPermission(
     || getSessionDirectory(sessionId)
     || dir()
   try {
-    if (await opencodeClient.replyToPermission(sessionId, requestId, "reject", { directory }) !== true) {
+    if (await getActiveAgentClient().replyToPermission(sessionId, requestId, "reject", { directory }) !== true) {
       throw new Error("Permission dismissal failed")
     }
   } catch (error) {
@@ -2372,7 +2373,7 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
   const status = state.session_status[sessionId]
   if (status && status.type !== "idle") {
     try {
-      await opencodeClient.abortSession(sessionId, directory)
+      await getActiveAgentClient().abortSession(sessionId, directory)
     } catch {
       // ignore abort errors
     }

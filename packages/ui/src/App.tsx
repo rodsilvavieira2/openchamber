@@ -45,6 +45,7 @@ import { restoreLastActiveSession } from '@/sync/last-session-restore';
 import { markSessionViewed } from '@/sync/notification-store';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { opencodeClient } from '@/lib/opencode/client';
+import { useAgentBackendSync } from '@/lib/agent/use-agent-backend';
 import { runtimeFetch } from '@/lib/runtime-fetch';
 import { getRuntimeKey, subscribeRuntimeEndpointChanged } from '@/lib/runtime-switch';
 import { useAutoReviewStore } from '@/stores/useAutoReviewStore';
@@ -271,6 +272,8 @@ const EmbeddedSessionChatContent: React.FC<{
 };
 
 function App({ apis }: AppProps) {
+  useAgentBackendSync();
+
   React.useEffect(() => {
     markStartupTrace('App:mounted');
     if (startupTraceEnabled()) {

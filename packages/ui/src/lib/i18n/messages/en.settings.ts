@@ -4,6 +4,17 @@ import { linearIntegrationI18n } from './linear-integration.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  'settings.agentBackend.title': 'Agent backend',
+  'settings.agentBackend.backend': 'Backend',
+  'settings.agentBackend.opencode': 'OpenCode',
+  'settings.agentBackend.acp': 'ACP agent',
+  'settings.agentBackend.agent': 'Agent',
+  'settings.agentBackend.agent.codex': 'Codex',
+  'settings.agentBackend.agent.claude': 'Claude Code',
+  'settings.agentBackend.agent.custom': 'Custom ACP',
+  'settings.agentBackend.command': 'Command',
+  'settings.agentBackend.arguments': 'Arguments',
+  'settings.agentBackend.hint': 'OpenCode is the default agent backend. Selecting an ACP agent runs sessions through the Agent Client Protocol instead; the agent process runs on the connected OpenChamber server.',
   'settings.themeImport.selectAll': 'Select all',
   'settings.themeImport.deselectAll': 'Deselect all',
   'settings.themeImport.complete': 'Import complete',

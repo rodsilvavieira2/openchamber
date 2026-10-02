@@ -6,6 +6,7 @@ import { SessionWorkSettings } from './SessionWorkSettings';
 import { PasskeySettings } from './PasskeySettings';
 import { AppLinkSecuritySettings } from './AppLinkSecuritySettings';
 import { DefaultsSettings } from './DefaultsSettings';
+import { AgentBackendSettings } from './AgentBackendSettings';
 import { GitSettings } from './GitSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { VoiceSettings } from './VoiceSettings';
@@ -53,6 +54,7 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
             <SettingsPageLayout showSaveStatus className="openchamber-page-body space-y-3 sm:space-y-6">
                 <OpenChamberVisualSettings />
                 <DefaultsSettings key={runtimeEndpointEpoch} />
+                <AgentBackendSettings />
                 <SessionWorkSettings />
                 {showDesktopNetworkSettings && <DesktopNetworkSettings />}
                 {!isVSCode && <OpenCodeCliSettings />}
@@ -152,6 +154,7 @@ const GeneralSectionContent: React.FC = () => {
             {showDesktopNetworkSettings && <DesktopNetworkSettings />}
             {showPasskeySettings && <PasskeySettings />}
             <AppLinkSecuritySettings />
+            <AgentBackendSettings />
             {!isVSCode && <OpenCodeCliSettings />}
             {!isVSCode && <OpenChamberToolsSettings />}
             <OpenChamberVisualSettings visibleSettings={[

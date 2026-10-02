@@ -19,6 +19,7 @@ import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } fro
 import type { PermissionMode } from "@/stores/utils/permissionAutoAccept"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { opencodeClient, type SkillMentions } from "@/lib/opencode/client"
+import { getActiveAgentClient } from "@/lib/agent/active-client"
 import { buildSkillMentionInstruction } from "@/lib/skillMentionInstruction"
 import { runtimeFetch } from "@/lib/runtime-fetch"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -268,7 +269,7 @@ export async function routeMessage(params: {
       // through the stream instead.
       params.appendSubmissions?.()
       const commandContext = [...contextItems, ...skillInstructionContext()]
-      await opencodeClient.sendCommand({
+      await getActiveAgentClient().sendCommand({
         runtimeKey: params.runtimeKey,
         id: params.sessionId,
         model: selection.model,
@@ -302,7 +303,7 @@ export async function routeMessage(params: {
     files: sendFiles,
     context: contextItems,
     appendSubmissions: params.appendSubmissions,
-    send: (messageID, context) => opencodeClient.sendMessage({
+    send: (messageID, context) => getActiveAgentClient().sendMessage({
       runtimeKey: params.runtimeKey,
       id: params.sessionId,
       providerID: params.providerID,

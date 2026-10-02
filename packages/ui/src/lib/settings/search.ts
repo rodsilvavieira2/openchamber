@@ -32,6 +32,19 @@ interface SettingsSearchAvailabilityContext extends SettingsRuntimeContext {
 
 const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
   {
+    id: 'general.agent-backend',
+    page: 'general',
+    titleKey: 'settings.agentBackend.title',
+    descriptionKey: 'settings.agentBackend.hint',
+    keywords: ['agent', 'backend', 'acp', 'codex', 'claude', 'opencode'],
+  },
+  {
+    id: 'general.agent-backend-command',
+    page: 'general',
+    titleKey: 'settings.agentBackend.command',
+    keywords: ['acp', 'command', 'executable', 'arguments'],
+  },
+  {
     id: 'chat.activity-default',
     page: 'chat',
     titleKey: 'settings.openchamber.visual.section.activityDefault',

@@ -4,6 +4,18 @@ import { linearIntegrationI18n } from './linear-integration.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  'settings.agentBackend.title': 'Agent backend',
+  'settings.agentBackend.backend': 'Backend',
+  'settings.agentBackend.opencode': 'OpenCode',
+  'settings.agentBackend.acp': 'ACP agent',
+  'settings.agentBackend.agent': 'Agent',
+  'settings.agentBackend.agent.codex': 'Codex',
+  'settings.agentBackend.agent.claude': 'Claude Code',
+  'settings.agentBackend.agent.custom': 'Custom ACP',
+  'settings.agentBackend.command': 'Command',
+  'settings.agentBackend.arguments': 'Arguments',
+  'settings.agentBackend.hint': 'OpenCode is the default agent backend. Selecting an ACP agent runs sessions through the Agent Client Protocol instead; the agent process runs on the connected OpenChamber server.',
+
   'settings.openchamber.tunnel.enterpriseMode': 'Externe tunnels zijn niet beschikbaar in enterprise-modus, omdat de tunneldienst het verkeer zou kunnen lezen. Koppel andere apparaten via uw netwerk of de relay van uw organisatie om deze server te bereiken.',
   'settings.voice.page.enterpriseMode': 'In enterprise-modus blijft voorlezen op deze computer. Gebruik een lokale stem of een aangepaste server die hier draait.',
   'settings.themeImport.selectAll': 'Alles selecteren',
