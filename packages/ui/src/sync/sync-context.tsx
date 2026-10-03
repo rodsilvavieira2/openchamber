@@ -62,6 +62,7 @@ import { syncDebug } from "./debug"
 import { getReconnectCandidateSessionIds, mergeBootstrapSessions } from "./reconnect-recovery"
 import { messagesBefore } from "./message-ordering"
 import { opencodeClient } from "@/lib/opencode/client"
+import { getActiveAgentClient } from "@/lib/agent/active-client"
 import { usePermissionStore } from "@/stores/permissionStore"
 import { policySnapshotFromWire } from "@/stores/utils/permissionAutoAccept"
 import { selectSafetyNetAvailable, useRoutingStore } from "@/stores/useRoutingStore"
@@ -2352,13 +2353,13 @@ export function SyncProvider(props: {
   const messageLoaderRef = useRef<SessionMessageLoader | null>(null)
   if (!messageLoaderRef.current) {
     messageLoaderRef.current = new SessionMessageLoader(childStores, {
-      sdk: opencodeClient,
+      sdk: getActiveAgentClient(),
       runtimeKey,
     })
   }
   const messageLoader = messageLoaderRef.current
   const messageLoaderDisposalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  messageLoader.configure({ sdk: opencodeClient, runtimeKey })
+  messageLoader.configure({ sdk: getActiveAgentClient(), runtimeKey })
   const routingIndexRef = useRef<EventRoutingIndex | null>(null)
   if (!routingIndexRef.current) routingIndexRef.current = createEventRoutingIndex()
   const routingIndex = routingIndexRef.current

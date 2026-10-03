@@ -147,7 +147,11 @@ export const createAcpClient = ({
       return true
     },
     listSessionsPage: async (): Promise<SessionPage> => unsupported("session listing"),
-    getSessionMessages: async (): Promise<MessagePage> => unsupported("message history"),
+    // ACP keeps no server-side transcript in this cycle: a fresh session has
+    // no history, and the live turn arrives over the event channel. Returning
+    // an empty page (instead of failing) keeps the loader from marking the
+    // chat with a load error.
+    getSessionMessages: async (): Promise<MessagePage> => ({ items: [], cursor: {} }),
     getDirectory: () => currentDirectory,
     setDirectory: (value?: string) => {
       currentDirectory = value

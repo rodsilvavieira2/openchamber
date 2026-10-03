@@ -83,12 +83,13 @@ describe("AcpClient", () => {
     expect(calls[0].body).toEqual({ sessionId: "sess-1", requestId: "perm-1", decision: "once" })
   })
 
-  test("reports unsupported capabilities explicitly", async () => {
+  test("reports an empty history page instead of failing the loader", async () => {
     const { fetchImpl } = fakeFetch([{ body: {} }])
     const client = createAcpClient({ config, fetchImpl })
 
+    const page = await client.getSessionMessages("sess-1")
+    expect(page).toEqual({ items: [], cursor: {} })
     await expect(client.listSessionsPage()).rejects.toThrow(/does not support/)
-    await expect(client.getSessionMessages("sess-1")).rejects.toThrow(/does not support/)
     await expect(client.sendCommand({ id: "sess-1", command: "status" })).rejects.toThrow(/does not support/)
   })
 })
