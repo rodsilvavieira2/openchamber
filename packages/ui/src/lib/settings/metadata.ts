@@ -8,6 +8,7 @@ export type SettingsPageSlug =
   | 'projects'
   | 'remote-instances'
   | 'providers'
+  | 'acp'
   | 'web-search'
   | 'usage'
   | 'agents'
@@ -99,6 +100,13 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     group: 'opencode',
     kind: 'single',
     keywords: ['provider', 'providers', 'models', 'model', 'api key', 'api keys', 'openai', 'anthropic', 'ollama', 'credentials'],
+  },
+  {
+    slug: 'acp',
+    title: 'ACP',
+    group: 'opencode',
+    kind: 'single',
+    keywords: ['acp', 'agent client protocol', 'codex', 'claude', 'agent', 'agents', 'cli', 'custom agent'],
   },
   {
     slug: 'web-search',
@@ -315,6 +323,8 @@ export function getSettingsNavIcon(slug: SettingsPageSlug): IconName | null {
 
     case 'providers':
       return 'cloud';
+    case 'acp':
+      return 'terminal-box';
     case 'web-search':
       return 'global';
     case 'agents':

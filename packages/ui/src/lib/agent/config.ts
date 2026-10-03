@@ -15,6 +15,8 @@ export type AgentBackendType = "opencode" | "acp"
 
 export type AgentBackendConfig = {
   backend: AgentBackendType
+  /** Which registered ACP agent new chats use when the backend is ACP. */
+  defaultAcpAgentId: string
   acp: AcpAgentConfig
 }
 
@@ -28,6 +30,7 @@ export const DEFAULT_ACP_AGENT: AcpAgentConfig = {
 
 export const DEFAULT_AGENT_BACKEND_CONFIG: AgentBackendConfig = {
   backend: "opencode",
+  defaultAcpAgentId: "codex",
   acp: DEFAULT_ACP_AGENT,
 }
 
@@ -35,6 +38,7 @@ const STORAGE_KEY = "oc.agent.backend.v1"
 
 const persistedSchema = z.object({
   backend: z.enum(["opencode", "acp"]).catch("opencode"),
+  defaultAcpAgentId: z.string().min(1).catch("codex"),
   acp: z
     .object({
       agentId: z.string().min(1).optional(),
@@ -57,18 +61,19 @@ export const parseAgentBackendConfig = (raw: string | null): AgentBackendConfig 
     return DEFAULT_AGENT_BACKEND_CONFIG
   }
   if (!parsed.success) return DEFAULT_AGENT_BACKEND_CONFIG
-  const acp = parsed.data.acp
-  if (!acp) return { backend: parsed.data.backend, acp: DEFAULT_ACP_AGENT }
   return {
     backend: parsed.data.backend,
-    acp: {
-      agentId: acp.agentId ?? DEFAULT_ACP_AGENT.agentId,
-      name: acp.name ?? DEFAULT_ACP_AGENT.name,
-      command: acp.command ?? DEFAULT_ACP_AGENT.command,
-      args: acp.args,
-      env: acp.env,
-      cwd: acp.cwd,
-    },
+    defaultAcpAgentId: parsed.data.defaultAcpAgentId,
+    acp: parsed.data.acp
+      ? {
+          agentId: parsed.data.acp.agentId ?? DEFAULT_ACP_AGENT.agentId,
+          name: parsed.data.acp.name ?? DEFAULT_ACP_AGENT.name,
+          command: parsed.data.acp.command ?? DEFAULT_ACP_AGENT.command,
+          args: parsed.data.acp.args,
+          env: parsed.data.acp.env,
+          cwd: parsed.data.acp.cwd,
+        }
+      : DEFAULT_ACP_AGENT,
   }
 }
 

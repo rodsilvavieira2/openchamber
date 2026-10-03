@@ -32,6 +32,7 @@ import { ProjectsSidebar } from '@/components/sections/projects/ProjectsSidebar'
 import { ProjectsPage } from '@/components/sections/projects/ProjectsPage';
 import { RemoteInstancesPage } from '@/components/sections/remote-instances/RemoteInstancesPage';
 import { ProvidersPage } from '@/components/sections/providers/ProvidersPage';
+import { AcpProvidersPage } from '@/components/sections/acp/AcpProvidersPage';
 import { UsageSidebar } from '@/components/sections/usage/UsageSidebar';
 import { UsagePage } from '@/components/sections/usage/UsagePage';
 import { MagicPromptsSidebar } from '@/components/sections/magic-prompts/MagicPromptsSidebar';
@@ -114,6 +115,7 @@ const pageOrder: SettingsPageSlug[] = [
   'isolated-spaces',
   // 'opencode' group — OpenCode
   'providers',
+  'acp',
   'web-search',
   'agents',
   'behavior',
@@ -345,6 +347,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         return t('settings.page.remoteInstances.title');
       case 'providers':
         return t('settings.page.providers.title');
+      case 'acp':
+        return t('settings.page.acp.title');
       case 'web-search':
         return t('settings.page.webSearch.title');
       case 'usage':
@@ -688,6 +692,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         return <SkillsPage view="catalog" />;
       case 'providers':
         return <ProvidersPage />;
+      case 'acp':
+        return <AcpProvidersPage />;
       case 'web-search':
         return <WebSearchPage />;
       case 'usage':

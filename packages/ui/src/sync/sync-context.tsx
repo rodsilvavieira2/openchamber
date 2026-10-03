@@ -62,7 +62,7 @@ import { syncDebug } from "./debug"
 import { getReconnectCandidateSessionIds, mergeBootstrapSessions } from "./reconnect-recovery"
 import { messagesBefore } from "./message-ordering"
 import { opencodeClient } from "@/lib/opencode/client"
-import { getActiveAgentClient } from "@/lib/agent/active-client"
+import { getAgentClientForSession } from "@/lib/agent/session-clients"
 import { usePermissionStore } from "@/stores/permissionStore"
 import { policySnapshotFromWire } from "@/stores/utils/permissionAutoAccept"
 import { selectSafetyNetAvailable, useRoutingStore } from "@/stores/useRoutingStore"
@@ -116,7 +116,19 @@ import {
   getImperativeSessionMessageLoader,
   setImperativeSessionMessageLoader,
   type SessionMessageLoadState,
+  type SessionMessagePageSource,
 } from "./session-message-loader"
+
+/**
+ * History source that follows the session, not the global backend: an OpenCode
+ * chat reads OpenCode history, an ACP chat reads its agent (empty page for a
+ * fresh session). Module-level so its identity stays stable across renders —
+ * the loader treats an identity change as a scope invalidation.
+ */
+const agentAwarePageSource: SessionMessagePageSource = {
+  getSessionMessages: (id, options, directory) =>
+    getAgentClientForSession(id).getSessionMessages(id, options, directory),
+}
 
 // ---------------------------------------------------------------------------
 // Context
@@ -2353,13 +2365,13 @@ export function SyncProvider(props: {
   const messageLoaderRef = useRef<SessionMessageLoader | null>(null)
   if (!messageLoaderRef.current) {
     messageLoaderRef.current = new SessionMessageLoader(childStores, {
-      sdk: getActiveAgentClient(),
+      sdk: agentAwarePageSource,
       runtimeKey,
     })
   }
   const messageLoader = messageLoaderRef.current
   const messageLoaderDisposalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  messageLoader.configure({ sdk: getActiveAgentClient(), runtimeKey })
+  messageLoader.configure({ sdk: agentAwarePageSource, runtimeKey })
   const routingIndexRef = useRef<EventRoutingIndex | null>(null)
   if (!routingIndexRef.current) routingIndexRef.current = createEventRoutingIndex()
   const routingIndex = routingIndexRef.current

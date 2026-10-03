@@ -19,7 +19,7 @@ import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } fro
 import type { PermissionMode } from "@/stores/utils/permissionAutoAccept"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { opencodeClient, type SkillMentions } from "@/lib/opencode/client"
-import { getActiveAgentClient } from "@/lib/agent/active-client"
+import { getAgentClientForSession } from "@/lib/agent/session-clients"
 import { buildSkillMentionInstruction } from "@/lib/skillMentionInstruction"
 import { runtimeFetch } from "@/lib/runtime-fetch"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -218,8 +218,12 @@ export async function routeMessage(params: {
   }
 
   let skills = params.skills
-  // Slash commands use the command route; skills attach to a normal prompt.
-  if (params.content.startsWith("/")) {
+  // The session's own backend serves the turn: an ACP chat and an OpenCode
+  // chat stay live side by side, each routed by its session binding.
+  const agentClient = getAgentClientForSession(params.sessionId)
+  // Slash commands are an OpenCode route ACP agents do not speak; on an ACP
+  // session "/name" travels as plain prompt text instead of failing resolution.
+  if (params.content.startsWith("/") && agentClient.backend !== "acp") {
     const [head, ...tail] = params.content.split(" ")
     const cmdName = head.slice(1)
 
@@ -269,7 +273,7 @@ export async function routeMessage(params: {
       // through the stream instead.
       params.appendSubmissions?.()
       const commandContext = [...contextItems, ...skillInstructionContext()]
-      await getActiveAgentClient().sendCommand({
+      await agentClient.sendCommand({
         runtimeKey: params.runtimeKey,
         id: params.sessionId,
         model: selection.model,
@@ -303,7 +307,7 @@ export async function routeMessage(params: {
     files: sendFiles,
     context: contextItems,
     appendSubmissions: params.appendSubmissions,
-    send: (messageID, context) => getActiveAgentClient().sendMessage({
+    send: (messageID, context) => agentClient.sendMessage({
       runtimeKey: params.runtimeKey,
       id: params.sessionId,
       providerID: params.providerID,

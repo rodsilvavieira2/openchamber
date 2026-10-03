@@ -14,6 +14,7 @@ import { ascendingId } from "@/lib/opencode/ids"
 import type { Session } from "@/lib/opencode/model"
 import type { MessagePage, SessionPage } from "@/lib/opencode/client"
 import type { AgentCapabilities, AgentClient, AgentPromptInput, CreateAgentSessionInput } from "./types"
+import { bindSessionToAgent } from "./session-bindings"
 
 const ZERO_TOKENS: Session["tokens"] = { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
 
@@ -29,9 +30,15 @@ export type AcpAgentConfig = {
 const errorSchema = z.object({ error: z.string().min(1), code: z.string().optional() })
 const initializeSchema = z.object({
   backend: z.literal("acp"),
+  agentId: z.string().min(1),
+  sessionIds: z.array(z.string()).optional(),
+  capabilities: z.record(z.string(), z.boolean()).optional(),
+})
+const sessionNewSchema = z.object({
+  backend: z.literal("acp"),
+  agentId: z.string().min(1),
   sessionId: z.string().min(1),
   directory: z.string().nullable(),
-  capabilities: z.record(z.string(), z.boolean()).optional(),
 })
 const promptSchema = z.object({ stopReason: z.string().nullable().optional() })
 const okSchema = z.object({ ok: z.boolean().optional() })
@@ -41,16 +48,16 @@ export type AcpInitializeResponse = z.infer<typeof initializeSchema>
 /** The narrow transport surface the client needs; `runtimeFetch` satisfies it. */
 export type AcpFetch = (
   input: string,
-  init: { method: string; headers: Record<string, string>; body: string },
+  init: { method: string; headers: Record<string, string>; body?: string },
 ) => Promise<Response>
 
 type AcpRequestBody = {
+  agentId?: string
   sessionId?: string
   messageId?: string
   text?: string
   requestId?: string
   decision?: string
-  agentId?: string
   name?: string
   command?: string
   args?: string[]
@@ -92,28 +99,41 @@ export const createAcpClient = ({
 
   const createSession = async (params?: CreateAgentSessionInput, dir?: string | null): Promise<Session> => {
     const effectiveDirectory = resolveDirectory(dir)
-    const body = await post(
+    const agentId = params?.agentId ?? config.agentId
+    // Ensure the agent process is running (idempotent per agent id).
+    await post(
       "/api/agent/acp/initialize",
       {
-        agentId: config.agentId,
+        agentId,
         name: config.name,
         command: config.command,
         args: config.args,
         env: config.env,
-        cwd: config.cwd,
-        directory: effectiveDirectory,
       },
       initializeSchema,
     )
+    const created = await post(
+      "/api/agent/acp/session/new",
+      {
+        agentId,
+        cwd: config.cwd ?? effectiveDirectory,
+        directory: effectiveDirectory,
+      },
+      sessionNewSchema,
+    )
     const now = Date.now()
+    bindSessionToAgent(created.sessionId, agentId)
     return {
-      id: body.sessionId,
+      id: created.sessionId,
       projectID: "",
-      directory: body.directory ?? effectiveDirectory ?? "",
+      directory: created.directory ?? effectiveDirectory ?? "",
       title: params?.title ?? "",
       cost: 0,
       tokens: ZERO_TOKENS,
       time: { created: now, updated: now },
+      // Binds the session to this agent; resolvers read it back to route
+      // every later turn to the right client without asking the user again.
+      metadata: { ...params?.metadata, acp: { agentId } },
     }
   }
 

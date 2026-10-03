@@ -41,6 +41,8 @@ export type CreateAgentSessionInput = {
   agent?: string
   model?: ModelRef
   metadata?: Metadata
+  /** ACP only: which registered agent serves the session. Ignored by OpenCode. */
+  agentId?: string
 }
 
 /** A prompt turn sent to a session. */

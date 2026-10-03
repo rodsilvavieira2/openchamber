@@ -32,6 +32,13 @@ interface SettingsSearchAvailabilityContext extends SettingsRuntimeContext {
 
 const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
   {
+    id: 'acp.agents',
+    page: 'acp',
+    titleKey: 'settings.acp.title',
+    descriptionKey: 'settings.acp.description',
+    keywords: ['acp', 'codex', 'claude', 'agent', 'agents', 'cli', 'custom'],
+  },
+  {
     id: 'general.agent-backend',
     page: 'general',
     titleKey: 'settings.agentBackend.title',

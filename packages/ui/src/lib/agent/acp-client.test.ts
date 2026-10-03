@@ -9,7 +9,7 @@ const fakeFetch = (responses: Array<{ status?: number; body: unknown }>) => {
   const calls: Captured[] = []
   let index = 0
   const fetchImpl: AcpFetch = async (input, init) => {
-    calls.push({ url: input, body: JSON.parse(init.body) })
+    calls.push({ url: input, body: init.body ? JSON.parse(init.body) : undefined })
     const spec = responses[Math.min(index, responses.length - 1)]
     index += 1
     return new Response(JSON.stringify(spec.body), {
@@ -21,24 +21,29 @@ const fakeFetch = (responses: Array<{ status?: number; body: unknown }>) => {
 }
 
 describe("AcpClient", () => {
-  test("creates a session through the ACP initialize route", async () => {
+  test("creates a session through initialize plus session/new", async () => {
     const { calls, fetchImpl } = fakeFetch([
-      { body: { backend: "acp", sessionId: "sess-1", directory: "/work", capabilities: {} } },
+      { body: { backend: "acp", agentId: "codex", sessionIds: [], capabilities: {} } },
+      { body: { backend: "acp", agentId: "codex", sessionId: "sess-1", directory: "/work" } },
     ])
     const client = createAcpClient({ config, directory: "/work", fetchImpl })
 
-    const session = await client.createSession({ title: "T" }, "/work")
+    const session = await client.createSession({ title: "T", agentId: "codex" }, "/work")
 
     expect(client.backend).toBe("acp")
     expect(session.id).toBe("sess-1")
     expect(session.directory).toBe("/work")
+    expect(session.metadata).toMatchObject({ acp: { agentId: "codex" } })
     expect(calls[0].url).toBe("/api/agent/acp/initialize")
-    expect(calls[0].body).toMatchObject({ command: "npx", args: ["-y", "codex-acp"], directory: "/work" })
+    expect(calls[0].body).toMatchObject({ agentId: "codex", command: "npx", args: ["-y", "codex-acp"] })
+    expect(calls[1].url).toBe("/api/agent/acp/session/new")
+    expect(calls[1].body).toMatchObject({ agentId: "codex", directory: "/work" })
   })
 
   test("sends a prompt with the client message id", async () => {
     const { calls, fetchImpl } = fakeFetch([
-      { body: { backend: "acp", sessionId: "sess-1", directory: "/work", capabilities: {} } },
+      { body: { backend: "acp", agentId: "codex", sessionIds: [], capabilities: {} } },
+      { body: { backend: "acp", agentId: "codex", sessionId: "sess-1", directory: "/work" } },
       { body: { stopReason: "end_turn" } },
     ])
     const client = createAcpClient({ config, fetchImpl })
@@ -52,8 +57,8 @@ describe("AcpClient", () => {
     })
 
     expect(returned).toBe("msg_user_1")
-    expect(calls[1].url).toBe("/api/agent/acp/prompt")
-    expect(calls[1].body).toEqual({ sessionId: "sess-1", messageId: "msg_user_1", text: "hello" })
+    expect(calls[2].url).toBe("/api/agent/acp/prompt")
+    expect(calls[2].body).toEqual({ sessionId: "sess-1", messageId: "msg_user_1", text: "hello" })
   })
 
   test("cancels through the ACP cancel route", async () => {

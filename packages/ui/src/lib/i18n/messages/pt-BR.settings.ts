@@ -4,6 +4,25 @@ import { linearIntegrationI18n } from './linear-integration.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  'settings.page.acp.title': 'ACP',
+  'settings.acp.title': 'Agentes ACP',
+  'settings.acp.description': 'Codex, Claude Code e qualquer outro CLI com Agent Client Protocol. Conecte um ou mais agentes e inicie um chat a partir de um card conectado. Cada chat fica vinculado ao seu agente.',
+  'settings.acp.search': 'Buscar agentes',
+  'settings.acp.status.off': 'Desligado',
+  'settings.acp.status.starting': 'Iniciando',
+  'settings.acp.status.connected': 'Conectado',
+  'settings.acp.status.error': 'Erro',
+  'settings.acp.card.sessions': 'sessões',
+  'settings.acp.card.default': 'Padrão',
+  'settings.acp.card.actions': 'Ações para {name}',
+  'settings.acp.actions.newChat': 'Novo chat',
+  'settings.acp.actions.connect': 'Conectar',
+  'settings.acp.actions.disconnect': 'Desconectar',
+  'settings.acp.actions.setDefault': 'Definir como padrão',
+  'settings.acp.custom.title': 'Agente personalizado',
+  'settings.acp.custom.command': 'Comando',
+  'settings.acp.custom.arguments': 'Argumentos',
+
   'settings.agentBackend.title': 'Backend do agente',
   'settings.agentBackend.backend': 'Backend',
   'settings.agentBackend.opencode': 'OpenCode',

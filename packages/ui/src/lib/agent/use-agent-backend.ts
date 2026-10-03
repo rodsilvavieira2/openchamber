@@ -10,11 +10,19 @@ import { useEffect } from "react"
 import { createAcpClient } from "./acp-client"
 import { setActiveAgentClient } from "./active-client"
 import { useAgentBackendStore } from "./config"
+import { resolveAcpAgent } from "./registry"
+import { clearAcpClientCache } from "./session-clients"
 
 export const useAgentBackendSync = (): void => {
   useEffect(() => {
     const apply = (config: ReturnType<typeof useAgentBackendStore.getState>["config"]): void => {
-      setActiveAgentClient(config.backend === "acp" ? createAcpClient({ config: config.acp }) : null)
+      // A changed custom definition must not keep serving through a stale client.
+      clearAcpClientCache()
+      setActiveAgentClient(
+        config.backend === "acp"
+          ? createAcpClient({ config: resolveAcpAgent(config.defaultAcpAgentId, config.acp) })
+          : null,
+      )
     }
     apply(useAgentBackendStore.getState().config)
     return useAgentBackendStore.subscribe((state) => apply(state.config))
