@@ -74,11 +74,21 @@ describe("AcpClient", () => {
     await expect(client.createSession()).rejects.toThrow("Codex ACP executable not found.")
   })
 
+  test("answers a permission request through the ACP permission route", async () => {
+    const { calls, fetchImpl } = fakeFetch([{ body: { ok: true } }])
+    const client = createAcpClient({ config, fetchImpl })
+
+    expect(await client.replyToPermission("sess-1", "perm-1", "once")).toBe(true)
+    expect(calls[0].url).toBe("/api/agent/acp/permission")
+    expect(calls[0].body).toEqual({ sessionId: "sess-1", requestId: "perm-1", decision: "once" })
+  })
+
   test("reports unsupported capabilities explicitly", async () => {
     const { fetchImpl } = fakeFetch([{ body: {} }])
     const client = createAcpClient({ config, fetchImpl })
 
-    expect(() => client.replyToPermission("s", "r", "once")).toThrow(/does not support/)
     await expect(client.listSessionsPage()).rejects.toThrow(/does not support/)
+    await expect(client.getSessionMessages("sess-1")).rejects.toThrow(/does not support/)
+    await expect(client.sendCommand({ id: "sess-1", command: "status" })).rejects.toThrow(/does not support/)
   })
 })

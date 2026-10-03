@@ -112,4 +112,30 @@ describe('acp-translate', () => {
     expect(payload.type).toBe('session.execution.failed');
     expect(payload.data.error.message).toBe('boom');
   });
+
+  it('maps a tool call lifecycle onto the OpenCode tool events', () => {
+    const translator = createTurnTranslator({ sessionID: 'sess-1', directory: '/work' });
+
+    const started = translator.update({
+      update: { sessionUpdate: 'tool_call', toolCallId: 't1', title: 'Run tests', kind: 'execute', status: 'pending' },
+    });
+    const running = translator.update({
+      update: { sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'in_progress', rawInput: { command: 'ls' } },
+    });
+    const done = translator.update({
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 't1',
+        status: 'completed',
+        content: [{ type: 'content', content: { type: 'text', text: 'ok' } }],
+      },
+    });
+
+    expect(started.map((payload) => payload.type)).toEqual(['session.step.started', 'session.tool.input.started']);
+    expect(started[1].data.name).toBe('shell');
+    expect(running.map((payload) => payload.type)).toEqual(['session.tool.called']);
+    expect(running[0].data.input).toEqual({ command: 'ls' });
+    expect(done.map((payload) => payload.type)).toEqual(['session.tool.success']);
+    expect(done[0].data.content).toEqual([{ type: 'text', text: 'ok' }]);
+  });
 });

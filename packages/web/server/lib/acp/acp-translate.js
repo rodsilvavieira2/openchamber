@@ -122,6 +122,79 @@ export const userMessageEnqueued = (sessionID, messageID, text, directory, metad
     { directory },
   );
 
+export const toolInputStarted = (sessionID, assistantMessageID, toolCallID, name, directory) =>
+  wire(
+    'session.tool.input.started',
+    { sessionID, assistantMessageID, id: toolCallID, name },
+    { directory },
+  );
+
+export const permissionAsked = (requestID, sessionID, action, directory, message) =>
+  wire('permission.asked', { id: requestID, sessionID, action, resources: [], message }, { directory });
+
+export const permissionReplied = (requestID, sessionID, directory) =>
+  wire('permission.replied', { sessionID, requestID }, { directory });
+
+export const toolCalled = (sessionID, assistantMessageID, toolCallID, input, directory) =>
+  wire(
+    'session.tool.called',
+    { sessionID, assistantMessageID, id: toolCallID, input: input ?? {}, executed: true },
+    { directory },
+  );
+
+export const toolSucceeded = (sessionID, assistantMessageID, toolCallID, content, directory) =>
+  wire(
+    'session.tool.success',
+    { sessionID, assistantMessageID, id: toolCallID, content, executed: true },
+    { directory },
+  );
+
+export const toolFailed = (sessionID, assistantMessageID, toolCallID, message, directory) =>
+  wire(
+    'session.tool.failed',
+    {
+      sessionID,
+      assistantMessageID,
+      id: toolCallID,
+      content: [],
+      error: { type: 'Error', message: message ?? 'Tool call failed' },
+      executed: true,
+    },
+    { directory },
+  );
+
+/** ACP tool kinds that OpenChamber's tool renderer already understands. */
+const TOOL_NAME_BY_KIND = {
+  execute: 'shell',
+  edit: 'edit',
+  read: 'read',
+  search: 'search',
+  delete: 'delete',
+  move: 'move',
+  fetch: 'fetch',
+  switch_mode: 'mode',
+  other: 'tool',
+};
+
+const toolNameFor = (update) =>
+  (typeof update.name === 'string' && update.name.length > 0 ? update.name : null) ??
+  TOOL_NAME_BY_KIND[update.kind] ??
+  'tool';
+
+const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** Turn ACP tool content into the text blocks the OpenCode renderer reads. */
+const toolContentBlocks = (content) => {
+  if (!Array.isArray(content)) return [];
+  const blocks = [];
+  for (const item of content) {
+    if (item?.type === 'content' && item.content?.type === 'text' && typeof item.content.text === 'string') {
+      blocks.push({ type: 'text', text: item.content.text });
+    }
+  }
+  return blocks;
+};
+
 const textFromChunk = (update) => {
   const content = update?.content;
   if (!content || content.type !== 'text' || typeof content.text !== 'string') return '';
@@ -140,6 +213,37 @@ export const createTurnTranslator = ({ sessionID, directory, agent, model } = {}
   let reasoningPartOpen = false;
   const textChunks = [];
   const reasoningChunks = [];
+  const toolState = new Map();
+
+  const handleTool = (events, update) => {
+    const toolCallID = update.toolCallId;
+    if (typeof toolCallID !== 'string' || toolCallID.length === 0) return;
+    ensureAssistant(events);
+    const state = toolState.get(toolCallID) ?? { started: false, status: null };
+    if (!state.started) {
+      state.started = true;
+      events.push(toolInputStarted(sessionID, assistantMessageID, toolCallID, toolNameFor(update), directory));
+    }
+    const status = update.status ?? state.status;
+    if (status === state.status) {
+      toolState.set(toolCallID, state);
+      return;
+    }
+    const input = isRecord(update.rawInput) ? update.rawInput : {};
+    // A terminal status on the first event still needs the call transition.
+    if (status !== 'pending' && state.status == null && status !== 'in_progress') {
+      events.push(toolCalled(sessionID, assistantMessageID, toolCallID, input, directory));
+    }
+    if (status === 'in_progress') {
+      events.push(toolCalled(sessionID, assistantMessageID, toolCallID, input, directory));
+    } else if (status === 'completed') {
+      events.push(toolSucceeded(sessionID, assistantMessageID, toolCallID, toolContentBlocks(update.content), directory));
+    } else if (status === 'failed') {
+      events.push(toolFailed(sessionID, assistantMessageID, toolCallID, update.title, directory));
+    }
+    state.status = status;
+    toolState.set(toolCallID, state);
+  };
 
   const ensureAssistant = (events) => {
     if (assistantMessageID) return;
@@ -191,6 +295,8 @@ export const createTurnTranslator = ({ sessionID, directory, agent, model } = {}
         }
         reasoningChunks.push(chunk);
         events.push(reasoningDelta(sessionID, assistantMessageID, reasoningOrdinal, chunk, directory));
+      } else if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
+        handleTool(events, update);
       }
       return events;
     },

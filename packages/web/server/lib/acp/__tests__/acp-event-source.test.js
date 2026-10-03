@@ -22,6 +22,14 @@ const collectHub = () => {
   };
 };
 
+const waitFor = async (predicate, timeoutMs = 5000) => {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeoutMs) throw new Error('Timed out waiting for condition');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
 describe('ACP event source', () => {
   const manager = createAgentProcessManager({ registry: noopRegistry });
   const sources = [];
@@ -64,5 +72,23 @@ describe('ACP event source', () => {
     const user = hub.payloads[0];
     expect(user.data).toMatchObject({ inboxID: 'msg_user_1', item: { payload: { text: 'hello' } } });
     expect(user.location).toEqual({ directory: '/work' });
+  }, 20_000);
+
+  it('holds a permission request until it is answered', async () => {
+    const hub = collectHub();
+    const source = createAcpEventSource({ hub, directory: '/work' });
+    sources.push(source);
+    await source.start({ command: process.execPath, args: [FIXTURE] });
+
+    const promptPromise = source.prompt({ messageId: 'msg_user_1', text: 'please ask' });
+    await waitFor(() => hub.payloads.some((payload) => payload.type === 'permission.asked'));
+
+    const asked = hub.payloads.find((payload) => payload.type === 'permission.asked');
+    expect(asked.data.action).toBe('Run the mock tool');
+    await source.respondToPermission(asked.data.id, 'once');
+
+    const result = await promptPromise;
+    expect(result.stopReason).toBe('end_turn');
+    expect(hub.payloads.some((payload) => payload.type === 'permission.replied')).toBe(true);
   }, 20_000);
 });

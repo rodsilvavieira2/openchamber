@@ -8,6 +8,7 @@ const makeSource = (overrides = {}) => ({
   start: vi.fn(async () => ({ sessionId: 'sess-1', initialized: { agentCapabilities: { loadSession: true } } })),
   prompt: vi.fn(async () => ({ stopReason: 'end_turn' })),
   cancel: vi.fn(async () => {}),
+  respondToPermission: vi.fn(async () => {}),
   stop: vi.fn(async () => {}),
   ...overrides,
 });
@@ -78,6 +79,20 @@ describe('ACP routes', () => {
     const res = await request(app).post('/api/agent/acp/prompt').send({ sessionId: 'other', text: 'hi' });
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('SESSION_NOT_FOUND');
+  });
+
+  it('answers a permission request', async () => {
+    const source = makeSource();
+    const runtime = createAcpRouteRuntime({ enabled: () => true, createSource: () => source });
+    const app = buildApp(runtime);
+    await request(app).post('/api/agent/acp/initialize').send({ command: 'agent' });
+
+    const res = await request(app)
+      .post('/api/agent/acp/permission')
+      .send({ sessionId: 'sess-1', requestId: 'perm-1', decision: 'always' });
+
+    expect(res.status).toBe(200);
+    expect(source.respondToPermission).toHaveBeenCalledWith('perm-1', 'always');
   });
 
   it('surfaces a failed handshake as an explicit error', async () => {

@@ -33,11 +33,25 @@ class MockAcpAgent {
 
   async prompt(params) {
     this.cancelled = false;
-    for (const text of REPLY_CHUNKS) {
+    const text = Array.isArray(params.prompt) ? params.prompt.map((block) => block?.text ?? '').join('') : '';
+    if (text.includes('ask')) {
+      const permission = await this.connection.requestPermission({
+        sessionId: params.sessionId,
+        toolCall: { toolCallId: 'mock-tool-1', title: 'Run the mock tool' },
+        options: [
+          { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+          { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+        ],
+      });
+      if (permission?.outcome?.outcome !== 'selected' || permission.outcome.optionId === 'reject-once') {
+        return { stopReason: 'cancelled' };
+      }
+    }
+    for (const chunk of REPLY_CHUNKS) {
       if (this.cancelled) break;
       await this.connection.sessionUpdate({
         sessionId: params.sessionId,
-        update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
+        update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: chunk } },
       });
     }
     return { stopReason: this.cancelled ? 'cancelled' : 'end_turn' };

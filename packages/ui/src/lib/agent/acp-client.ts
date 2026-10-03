@@ -48,6 +48,8 @@ type AcpRequestBody = {
   sessionId?: string
   messageId?: string
   text?: string
+  requestId?: string
+  decision?: string
   agentId?: string
   name?: string
   command?: string
@@ -140,7 +142,10 @@ export const createAcpClient = ({
     sendMessage,
     sendCommand: async () => unsupported("slash commands"),
     abortSession,
-    replyToPermission: async () => unsupported("permission replies"),
+    replyToPermission: async (sessionID, requestID, reply) => {
+      await post("/api/agent/acp/permission", { sessionId: sessionID, requestId: requestID, decision: reply }, okSchema)
+      return true
+    },
     listSessionsPage: async (): Promise<SessionPage> => unsupported("session listing"),
     getSessionMessages: async (): Promise<MessagePage> => unsupported("message history"),
     getDirectory: () => currentDirectory,

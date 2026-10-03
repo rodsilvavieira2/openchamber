@@ -109,6 +109,26 @@ export const createAcpRouteRuntime = ({ createSource = createAcpEventSource, ena
       }
     });
 
+    // Answer a permission request the agent is blocked on.
+    app.post('/api/agent/acp/permission', express.json({ limit: '1mb' }), async (req, res) => {
+      if (!ensureEnabled(res)) return;
+      if (!active) {
+        return json(res, 409, { error: 'ACP agent is not initialized', code: 'AGENT_NOT_FOUND' });
+      }
+      const body = req.body ?? {};
+      const requestId = typeof body.requestId === 'string' ? body.requestId : '';
+      if (!requestId) {
+        return json(res, 400, { error: 'Missing required field: requestId', code: 'PERMISSION_FAILED' });
+      }
+      const decision = body.decision === 'always' ? 'always' : body.decision === 'reject' ? 'reject' : 'once';
+      try {
+        await active.source.respondToPermission(requestId, decision);
+        return json(res, 200, { ok: true });
+      } catch (error) {
+        return json(res, 502, { error: error?.message ?? 'ACP permission reply failed', code: 'PERMISSION_FAILED' });
+      }
+    });
+
     app.post('/api/agent/acp/shutdown', async (_req, res) => {
       if (!ensureEnabled(res)) return;
       await teardown();
