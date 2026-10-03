@@ -117,9 +117,74 @@ export const createAcpRouteRuntime = ({ createSource = createAcpEventSource, ena
           directory,
         });
         sessions.set(created.sessionId, agentId);
-        return json(res, 200, { backend: 'acp', agentId, sessionId: created.sessionId, directory: directory ?? null });
+        const options = record.source.getSessionOptions(created.sessionId);
+        return json(res, 200, {
+          backend: 'acp',
+          agentId,
+          sessionId: created.sessionId,
+          directory: directory ?? null,
+          modes: options.modes,
+          configOptions: options.configOptions,
+        });
       } catch (error) {
         return json(res, 502, { error: error?.message ?? 'ACP session creation failed', code: 'SESSION_CREATE_FAILED' });
+      }
+    });
+
+    // Read the modes/config snapshot that drives the chat session controls.
+    app.post('/api/agent/acp/session/options', express.json({ limit: '1mb' }), async (req, res) => {
+      if (!ensureEnabled(res)) return;
+      const body = req.body ?? {};
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
+      const source = sourceForSession(sessionId);
+      if (!source) {
+        return json(res, 404, { error: 'Session not found', code: 'SESSION_NOT_FOUND' });
+      }
+      try {
+        const options = source.getSessionOptions(sessionId);
+        return json(res, 200, { sessionId, modes: options.modes ?? null, configOptions: options.configOptions ?? [] });
+      } catch (error) {
+        return json(res, 502, { error: error?.message ?? 'ACP session lookup failed', code: 'SESSION_NOT_FOUND' });
+      }
+    });
+
+    // Switch the session mode (ask/code/architect/... as advertised).
+    app.post('/api/agent/acp/session/mode', express.json({ limit: '1mb' }), async (req, res) => {
+      if (!ensureEnabled(res)) return;
+      const body = req.body ?? {};
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
+      const source = sourceForSession(sessionId);
+      if (!source) {
+        return json(res, 404, { error: 'Session not found', code: 'SESSION_NOT_FOUND' });
+      }
+      if (typeof body.modeId !== 'string' || body.modeId.length === 0) {
+        return json(res, 400, { error: 'Missing required field: modeId', code: 'SESSION_NOT_FOUND' });
+      }
+      try {
+        const options = await source.setSessionMode(sessionId, body.modeId);
+        return json(res, 200, { sessionId, modes: options.modes ?? null, configOptions: options.configOptions ?? [] });
+      } catch (error) {
+        return json(res, 502, { error: error?.message ?? 'ACP mode switch failed', code: 'PROMPT_FAILED' });
+      }
+    });
+
+    // Set one session config option (model, reasoning effort, ... as advertised).
+    app.post('/api/agent/acp/session/config', express.json({ limit: '1mb' }), async (req, res) => {
+      if (!ensureEnabled(res)) return;
+      const body = req.body ?? {};
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
+      const source = sourceForSession(sessionId);
+      if (!source) {
+        return json(res, 404, { error: 'Session not found', code: 'SESSION_NOT_FOUND' });
+      }
+      if (typeof body.configId !== 'string' || body.configId.length === 0) {
+        return json(res, 400, { error: 'Missing required field: configId', code: 'PROMPT_FAILED' });
+      }
+      try {
+        const options = await source.setSessionConfigOption(sessionId, body.configId, body.value);
+        return json(res, 200, { sessionId, modes: options.modes ?? null, configOptions: options.configOptions ?? [] });
+      } catch (error) {
+        return json(res, 502, { error: error?.message ?? 'ACP config change failed', code: 'PROMPT_FAILED' });
       }
     });
 

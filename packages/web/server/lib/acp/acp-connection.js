@@ -55,6 +55,13 @@ export const createAcpConnection = ({
     cancel: (sessionId) => connection.cancel({ sessionId }),
     /** Best-effort: older agents may not implement session/close. */
     closeSession: (sessionId) => connection.closeSession?.({ sessionId }),
+    setSessionMode: (sessionId, modeId) => connection.setSessionMode({ sessionId, modeId }),
+    setSessionConfigOption: (sessionId, configId, value) =>
+      connection.setSessionConfigOption(
+        typeof value === 'boolean'
+          ? { sessionId, configId, type: 'boolean', value }
+          : { sessionId, configId, value },
+      ),
     /** Aborts when the underlying transport closes. */
     signal: connection.signal,
   };

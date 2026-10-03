@@ -11,6 +11,9 @@ const makeSource = (overrides = {}) => ({
   cancel: vi.fn(async () => {}),
   closeSession: vi.fn(async () => {}),
   respondToPermission: vi.fn(async () => {}),
+  getSessionOptions: vi.fn(() => ({ sessionId: 'sess-1', modes: null, configOptions: [] })),
+  setSessionMode: vi.fn(async (sessionId) => ({ sessionId, modes: null, configOptions: [] })),
+  setSessionConfigOption: vi.fn(async (sessionId) => ({ sessionId, modes: null, configOptions: [] })),
   stop: vi.fn(async () => {}),
   sessionIds: [],
   ...overrides,
@@ -117,6 +120,31 @@ describe('ACP routes', () => {
 
     expect(res.status).toBe(200);
     expect(source.respondToPermission).toHaveBeenCalledWith('perm-1', 'always');
+  });
+
+  it('reads and writes session modes and config options', async () => {
+    const source = makeSource();
+    const runtime = createAcpRouteRuntime({ enabled: () => true, createSource: () => source });
+    const app = buildApp(runtime);
+    await initialize(app);
+    await request(app).post('/api/agent/acp/session/new').send({ agentId: 'codex' });
+
+    const options = await request(app).post('/api/agent/acp/session/options').send({ sessionId: 'sess-1' });
+    expect(options.status).toBe(200);
+    expect(source.getSessionOptions).toHaveBeenCalledWith('sess-1');
+
+    const mode = await request(app).post('/api/agent/acp/session/mode').send({ sessionId: 'sess-1', modeId: 'ask' });
+    expect(mode.status).toBe(200);
+    expect(source.setSessionMode).toHaveBeenCalledWith('sess-1', 'ask');
+
+    const config = await request(app)
+      .post('/api/agent/acp/session/config')
+      .send({ sessionId: 'sess-1', configId: 'model', value: 'mock-model-b' });
+    expect(config.status).toBe(200);
+    expect(source.setSessionConfigOption).toHaveBeenCalledWith('sess-1', 'model', 'mock-model-b');
+
+    const missing = await request(app).post('/api/agent/acp/session/options').send({ sessionId: 'nope' });
+    expect(missing.status).toBe(404);
   });
 
   it('surfaces a failed handshake as an explicit error', async () => {

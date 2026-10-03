@@ -18,6 +18,8 @@ class MockAcpAgent {
     this.connection = connection;
     this.cancelled = false;
     this.sessionCount = 0;
+    this.modeId = 'code';
+    this.modelId = 'mock-model-a';
   }
 
   async initialize() {
@@ -30,7 +32,44 @@ class MockAcpAgent {
 
   async newSession() {
     this.sessionCount += 1;
-    return { sessionId: `mock-session-${this.sessionCount}` };
+    return {
+      sessionId: `mock-session-${this.sessionCount}`,
+      modes: {
+        currentModeId: this.modeId,
+        availableModes: [
+          { id: 'code', name: 'Code' },
+          { id: 'ask', name: 'Ask' },
+        ],
+      },
+      configOptions: this.configOptions(),
+    };
+  }
+
+  configOptions() {
+    return [
+      {
+        id: 'model',
+        type: 'select',
+        name: 'Model',
+        currentValue: this.modelId,
+        options: [
+          { value: 'mock-model-a', name: 'Mock Model A' },
+          { value: 'mock-model-b', name: 'Mock Model B' },
+        ],
+      },
+    ];
+  }
+
+  async setSessionMode(params) {
+    this.modeId = params.modeId;
+    return {};
+  }
+
+  async setSessionConfigOption(params) {
+    if (params.configId === 'model' && typeof params.value === 'string') {
+      this.modelId = params.value;
+    }
+    return { configOptions: this.configOptions() };
   }
 
   async prompt(params) {

@@ -113,4 +113,24 @@ describe('ACP event source', () => {
     await source.closeSession(first.sessionId);
     expect(source.sessionIds).toEqual([second.sessionId]);
   }, 20_000);
+
+  it('tracks modes and config options per session', async () => {
+    const hub = collectHub();
+    const source = await startSource(hub);
+    const { sessionId } = await source.newSession({ directory: '/work' });
+
+    const initial = source.getSessionOptions(sessionId);
+    expect(initial.modes.currentModeId).toBe('code');
+    expect(initial.modes.availableModes.map((mode) => mode.id)).toEqual(['code', 'ask']);
+    expect(initial.configOptions.map((option) => option.id)).toEqual(['model']);
+
+    const afterMode = await source.setSessionMode(sessionId, 'ask');
+    expect(afterMode.modes.currentModeId).toBe('ask');
+
+    const afterConfig = await source.setSessionConfigOption(sessionId, 'model', 'mock-model-b');
+    const model = afterConfig.configOptions.find((option) => option.id === 'model');
+    expect(model.currentValue).toBe('mock-model-b');
+
+    expect(() => source.getSessionOptions('missing')).toThrow(/not open/);
+  }, 20_000);
 });

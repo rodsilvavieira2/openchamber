@@ -36,6 +36,15 @@ const chooseOptionId = (options, decision) => {
   return options[0]?.optionId ?? null;
 };
 
+/** Replace one config option by id, preserving order; appends when unknown. */
+const upsertConfigOption = (options, option) => {
+  const list = Array.isArray(options) ? options : [];
+  if (!option || typeof option.id !== 'string') return list;
+  const index = list.findIndex((entry) => entry?.id === option.id);
+  if (index === -1) return [...list, option];
+  return list.map((entry, at) => (at === index ? option : entry));
+};
+
 /**
  * @param {object} options
  * @param {{ injectEvent: (event: { payload: unknown, directory?: string }) => void }} options.hub
@@ -55,7 +64,7 @@ export const createAcpEventSource = ({
 } = {}) => {
   let handle = null;
   let connection = null;
-  /** sessionId -> { translator, directory } */
+  /** sessionId -> { translator, directory, modes, configOptions } */
   const sessions = new Map();
   const pendingPermissions = new Map();
 
@@ -67,7 +76,19 @@ export const createAcpEventSource = ({
 
   const publishUpdate = (params) => {
     const record = sessionOf(params?.sessionId);
-    if (!record?.translator) return;
+    if (!record) return;
+    // The agent moved on its own (mode/config changed mid-turn): keep the
+    // stored snapshot fresh. The UI refetches on open and after its own sets.
+    const update = params?.update;
+    if (update?.sessionUpdate === 'current_mode_update' && typeof update.currentModeId === 'string') {
+      if (record.modes) record.modes = { ...record.modes, currentModeId: update.currentModeId };
+      return;
+    }
+    if (update?.sessionUpdate === 'config_option_update' && update.configOption) {
+      record.configOptions = upsertConfigOption(record.configOptions, update.configOption);
+      return;
+    }
+    if (!record.translator) return;
     for (const payload of record.translator.update(params)) publish(payload, record.directory);
   };
 
@@ -97,7 +118,12 @@ export const createAcpEventSource = ({
   const newSession = async ({ cwd, directory: sessionDirectory } = {}) => {
     if (!connection) throw new Error('ACP agent is not started.');
     const session = await connection.newSession({ cwd: cwd ?? sessionDirectory ?? directory ?? process.cwd() });
-    sessions.set(session.sessionId, { translator: null, directory: sessionDirectory ?? directory });
+    sessions.set(session.sessionId, {
+      translator: null,
+      directory: sessionDirectory ?? directory,
+      modes: session.modes ?? null,
+      configOptions: session.configOptions ?? [],
+    });
     return { sessionId: session.sessionId, session };
   };
 
@@ -124,6 +150,29 @@ export const createAcpEventSource = ({
 
   const cancel = async (sessionId) => {
     if (connection && sessionId && sessions.has(sessionId)) await connection.cancel(sessionId);
+  };
+
+  /** The modes/config snapshot the UI renders its session controls from. */
+  const getSessionOptions = (sessionId) => {
+    const record = sessionOf(sessionId);
+    if (!record) throw new Error(`ACP session ${sessionId ?? '(missing)'} is not open.`);
+    return { sessionId, modes: record.modes, configOptions: record.configOptions ?? [] };
+  };
+
+  const setSessionMode = async (sessionId, modeId) => {
+    const record = sessionOf(sessionId);
+    if (!connection || !record) throw new Error(`ACP session ${sessionId ?? '(missing)'} is not open.`);
+    await connection.setSessionMode(sessionId, modeId);
+    if (record.modes) record.modes = { ...record.modes, currentModeId: modeId };
+    return getSessionOptions(sessionId);
+  };
+
+  const setSessionConfigOption = async (sessionId, configId, value) => {
+    const record = sessionOf(sessionId);
+    if (!connection || !record) throw new Error(`ACP session ${sessionId ?? '(missing)'} is not open.`);
+    const result = await connection.setSessionConfigOption(sessionId, configId, value);
+    if (result && Array.isArray(result.configOptions)) record.configOptions = result.configOptions;
+    return getSessionOptions(sessionId);
   };
 
   /** Answer a held `session/request_permission` and clear its UI card. */
@@ -170,6 +219,9 @@ export const createAcpEventSource = ({
     cancel,
     closeSession,
     respondToPermission,
+    getSessionOptions,
+    setSessionMode,
+    setSessionConfigOption,
     stop,
     get sessionIds() {
       return [...sessions.keys()];
