@@ -8,7 +8,17 @@ ACP SDK: `@agentclientprotocol/sdk` `1.7.0` (server-only, `packages/web`).
 
 Progress: M1 `AgentClient` + OpenCode adapter landed (no behavior change);
 M2 process manager, feature flag, SDK connection, and fake-agent handshake
-landed. M3 (translation into sync events) onward is pending.
+landed. M3 translation into v2 wire payloads + event source landed. M4 routes
+`/api/agent/acp/{initialize,prompt,cancel,permission,shutdown,status}` landed
+and registered before the proxy, with shutdown teardown. M5 UI `AcpClient` +
+`getActiveAgentClient()` at the create/prompt/abort/permission seams + backend
+selector in Settings landed. M7 tool-call mapping and permission
+request/response landed.
+Claude and Codex are config-level registrations on the same `AcpAgentRuntime`
+(no provider branches): Codex via `npx -y @agentclientprotocol/codex-acp`,
+Claude via `claude-code-acp`. Automated validation uses the fake ACP agent;
+checking the real Codex/Claude binaries requires their CLIs and credentials,
+so it stays a manual gate (see §14).
 
 ## 1. Current OpenCode flow
 
@@ -274,7 +284,34 @@ merge, remote/HTTP/WS ACP, cloud registry, auto-install, complex worktree orches
 - Logs: `agent.runtime|opencode|acp|acp.process|acp.protocol|acp.session`;
   content/timing without full prompts; never secrets.
 
-## 13. Open questions
+## 13. Manual validation (Codex / Claude)
+
+Automated E2E runs against the fake agent
+(`packages/web/server/lib/acp/__tests__/fixtures/mock-agent.mjs`). To validate
+a real bridge:
+
+```bash
+export OPENCHAMBER_ACP_ENABLED=1
+# Codex
+npx -y @agentclientprotocol/codex-acp
+# or Claude
+npx claude-code-acp
+```
+
+1. Start the server (`bun run dev:web:server`), open Settings → Agent backend →
+   ACP, pick Codex (or Custom with `claude-code-acp` and the agent's login done
+   in the terminal first).
+2. Create a chat session, send a prompt. The reply must stream; tool calls must
+   render generically; a permission request must surface the permission card and
+   approve/deny must unblock or stop the tool.
+3. Stop the server and confirm the agent process is gone (shutdown teardown),
+   restart and confirm no orphan remains (startup reaper).
+
+Not done in this cycle (Should scope from #2010): `session/list`/`resume` in
+the sidebar, remote HTTP/WS transports, models/config-option pickers, plans,
+slash commands, MCP forwarding, multi-agent orchestration.
+
+## 14. Open questions
 
 - OQ1 (resolved, M2): the SDK does **not** spawn. `@agentclientprotocol/sdk`
   exposes `ndJsonStream(output, input)` over our own
