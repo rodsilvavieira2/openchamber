@@ -1,9 +1,11 @@
-// ACP event source: drives one ACP session over a managed connection and
-// publishes its stream as OpenCode v2 wire payloads through the global hub, so
-// the existing sync pipeline renders the turn unchanged.
+// ACP event source: drives the sessions of ONE agent process and publishes
+// their streams as OpenCode v2 wire payloads through the global hub, so the
+// existing sync pipeline renders every turn unchanged.
 //
-// Lifecycle: `start(launch)` spawns and handshakes; `prompt(...)` runs one turn;
-// `stop()` tears the process down. A transport or handshake failure publishes an
+// One source owns one agent process and N sessions on it. Lifecycle:
+// `start(launch)` spawns and handshakes; `newSession(...)` opens a session;
+// `prompt(...)` runs one turn on it; `closeSession(...)` drops it;
+// `stop()` tears the process down. Transport/handshake failures publish an
 // explicit `session.execution.failed` (never an empty success).
 
 import { createAcpConnection } from './acp-connection.js';
@@ -37,7 +39,8 @@ const chooseOptionId = (options, decision) => {
 /**
  * @param {object} options
  * @param {{ injectEvent: (event: { payload: unknown, directory?: string }) => void }} options.hub
- * @param {string} [options.directory] Session working directory.
+ * @param {string} [options.directory] Default working directory for sessions.
+ * @param {string} [options.agentId='default'] Stable id of this agent.
  * @param {string} [options.agentLabel='ACP'] Label for the assistant message footer.
  * @param {ReturnType<typeof createAgentProcessManager>} [options.manager]
  * @param {(error: unknown) => void} [options.onError]
@@ -45,23 +48,27 @@ const chooseOptionId = (options, decision) => {
 export const createAcpEventSource = ({
   hub,
   directory,
+  agentId = 'default',
   agentLabel = 'ACP',
   manager = createAgentProcessManager(),
   onError = () => {},
 } = {}) => {
   let handle = null;
   let connection = null;
-  let sessionId = null;
-  let translator = null;
+  /** sessionId -> { translator, directory } */
+  const sessions = new Map();
   const pendingPermissions = new Map();
 
-  const publish = (payload) => {
-    hub?.injectEvent?.({ payload, directory });
+  const publish = (payload, sessionDirectory) => {
+    hub?.injectEvent?.({ payload, directory: sessionDirectory ?? directory });
   };
 
+  const sessionOf = (sessionId) => sessions.get(sessionId) ?? null;
+
   const publishUpdate = (params) => {
-    if (!translator) return;
-    for (const payload of translator.update(params)) publish(payload);
+    const record = sessionOf(params?.sessionId);
+    if (!record?.translator) return;
+    for (const payload of record.translator.update(params)) publish(payload, record.directory);
   };
 
   const start = async (launch = {}) => {
@@ -73,15 +80,50 @@ export const createAcpEventSource = ({
       onPermissionRequest: (params) =>
         new Promise((resolve) => {
           const requestID = params?.toolCall?.toolCallId ?? ascendingId('perm');
+          const record = sessionOf(params?.sessionId);
           pendingPermissions.set(requestID, { resolve, params });
           const action = params?.toolCall?.title ?? 'Permission required';
-          publish(permissionAsked(requestID, params?.sessionId ?? sessionId, action, directory, action));
+          publish(
+            permissionAsked(requestID, params?.sessionId ?? null, action, record?.directory ?? directory, action),
+            record?.directory,
+          );
         }),
     });
     const initialized = await connection.initialize();
-    const session = await connection.newSession({ cwd: launch.cwd ?? directory ?? process.cwd() });
-    sessionId = session.sessionId;
-    return { sessionId, initialized, session };
+    return { agentId, initialized };
+  };
+
+  /** Open a session on the running agent. */
+  const newSession = async ({ cwd, directory: sessionDirectory } = {}) => {
+    if (!connection) throw new Error('ACP agent is not started.');
+    const session = await connection.newSession({ cwd: cwd ?? sessionDirectory ?? directory ?? process.cwd() });
+    sessions.set(session.sessionId, { translator: null, directory: sessionDirectory ?? directory });
+    return { sessionId: session.sessionId, session };
+  };
+
+  /** Run one prompt turn; resolves with the ACP PromptResponse. */
+  const prompt = async ({ sessionId, messageId, text, model } = {}) => {
+    const record = sessionOf(sessionId);
+    if (!connection || !record) throw new Error(`ACP session ${sessionId ?? '(missing)'} is not open.`);
+    const id = typeof messageId === 'string' && messageId.length > 0 ? messageId : ascendingId('msg');
+    publish(userMessageEnqueued(sessionId, id, text, record.directory), record.directory);
+    publish(sessionExecutionStarted(sessionId, record.directory), record.directory);
+    record.translator = createTurnTranslator({ sessionID: sessionId, directory: record.directory, agent: agentLabel, model });
+    try {
+      const result = await connection.prompt(sessionId, [{ type: 'text', text }]);
+      for (const payload of record.translator.finish(result?.stopReason)) publish(payload, record.directory);
+      return result;
+    } catch (error) {
+      publish(sessionExecutionFailed(sessionId, error, record.directory), record.directory);
+      onError(error);
+      throw error;
+    } finally {
+      record.translator = null;
+    }
+  };
+
+  const cancel = async (sessionId) => {
+    if (connection && sessionId && sessions.has(sessionId)) await connection.cancel(sessionId);
   };
 
   /** Answer a held `session/request_permission` and clear its UI card. */
@@ -95,36 +137,20 @@ export const createAcpEventSource = ({
         ? { outcome: { outcome: 'selected', optionId } }
         : { outcome: { outcome: 'cancelled' } },
     );
-    publish(permissionReplied(requestID, pending.params?.sessionId ?? sessionId, directory));
+    const record = sessionOf(pending.params?.sessionId);
+    publish(permissionReplied(requestID, pending.params?.sessionId ?? null, record?.directory ?? directory), record?.directory);
   };
 
-  /** Run one prompt turn; resolves with the ACP PromptResponse. */
-  const prompt = async ({ messageId, text, model } = {}) => {
-    if (!connection || !sessionId) throw new Error('ACP session is not started.');
-    const id = typeof messageId === 'string' && messageId.length > 0 ? messageId : ascendingId('msg');
-    publish(userMessageEnqueued(sessionId, id, text, directory));
-    publish(sessionExecutionStarted(sessionId, directory));
-    translator = createTurnTranslator({ sessionID: sessionId, directory, agent: agentLabel, model });
-    try {
-      const result = await connection.prompt(sessionId, [{ type: 'text', text }]);
-      for (const payload of translator.finish(result?.stopReason)) publish(payload);
-      return result;
-    } catch (error) {
-      publish(sessionExecutionFailed(sessionId, error, directory));
-      onError(error);
-      throw error;
-    } finally {
-      translator = null;
+  /** Drop a session locally; best-effort protocol close. */
+  const closeSession = async (sessionId) => {
+    sessions.delete(sessionId);
+    if (connection && typeof connection.closeSession === 'function') {
+      await connection.closeSession(sessionId).catch(() => {});
     }
   };
 
-  const cancel = async () => {
-    if (connection && sessionId) await connection.cancel(sessionId);
-  };
-
   const stop = async () => {
-    translator = null;
-    sessionId = null;
+    sessions.clear();
     connection = null;
     for (const pending of pendingPermissions.values()) {
       pending.resolve({ outcome: { outcome: 'cancelled' } });
@@ -137,13 +163,16 @@ export const createAcpEventSource = ({
   };
 
   return {
+    agentId,
     start,
+    newSession,
     prompt,
     cancel,
+    closeSession,
     respondToPermission,
     stop,
-    get sessionId() {
-      return sessionId;
+    get sessionIds() {
+      return [...sessions.keys()];
     },
     get pid() {
       return handle?.pid ?? null;

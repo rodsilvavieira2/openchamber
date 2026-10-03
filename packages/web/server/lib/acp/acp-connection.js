@@ -53,6 +53,8 @@ export const createAcpConnection = ({
     newSession: (params) => connection.newSession({ mcpServers: [], ...params }),
     prompt: (sessionId, prompt) => connection.prompt({ sessionId, prompt }),
     cancel: (sessionId) => connection.cancel({ sessionId }),
+    /** Best-effort: older agents may not implement session/close. */
+    closeSession: (sessionId) => connection.closeSession?.({ sessionId }),
     /** Aborts when the underlying transport closes. */
     signal: connection.signal,
   };

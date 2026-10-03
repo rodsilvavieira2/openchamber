@@ -17,6 +17,7 @@ class MockAcpAgent {
   constructor(connection) {
     this.connection = connection;
     this.cancelled = false;
+    this.sessionCount = 0;
   }
 
   async initialize() {
@@ -28,7 +29,8 @@ class MockAcpAgent {
   }
 
   async newSession() {
-    return { sessionId: 'mock-session-1' };
+    this.sessionCount += 1;
+    return { sessionId: `mock-session-${this.sessionCount}` };
   }
 
   async prompt(params) {

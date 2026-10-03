@@ -39,15 +39,19 @@ describe('ACP event source', () => {
     sources.length = 0;
   });
 
+  const startSource = async (hub, directory = '/work') => {
+    const source = createAcpEventSource({ hub, directory, agentId: 'mock' });
+    sources.push(source);
+    await source.start({ command: process.execPath, args: [FIXTURE] });
+    return source;
+  };
+
   it('publishes a full turn as wire payloads the sync layer understands', async () => {
     const hub = collectHub();
-    const source = createAcpEventSource({ hub, directory: '/work' });
-    sources.push(source);
+    const source = await startSource(hub);
+    const { sessionId } = await source.newSession({ directory: '/work' });
 
-    const started = await source.start({ command: process.execPath, args: [FIXTURE] });
-    expect(started.sessionId).toBe('mock-session-1');
-
-    await source.prompt({ messageId: 'msg_user_1', text: 'hello' });
+    await source.prompt({ sessionId, messageId: 'msg_user_1', text: 'hello' });
 
     const types = hub.payloads.map((payload) => payload.type);
     expect(types).toEqual([
@@ -76,11 +80,10 @@ describe('ACP event source', () => {
 
   it('holds a permission request until it is answered', async () => {
     const hub = collectHub();
-    const source = createAcpEventSource({ hub, directory: '/work' });
-    sources.push(source);
-    await source.start({ command: process.execPath, args: [FIXTURE] });
+    const source = await startSource(hub);
+    const { sessionId } = await source.newSession({ directory: '/work' });
 
-    const promptPromise = source.prompt({ messageId: 'msg_user_1', text: 'please ask' });
+    const promptPromise = source.prompt({ sessionId, messageId: 'msg_user_1', text: 'please ask' });
     await waitFor(() => hub.payloads.some((payload) => payload.type === 'permission.asked'));
 
     const asked = hub.payloads.find((payload) => payload.type === 'permission.asked');
@@ -90,5 +93,24 @@ describe('ACP event source', () => {
     const result = await promptPromise;
     expect(result.stopReason).toBe('end_turn');
     expect(hub.payloads.some((payload) => payload.type === 'permission.replied')).toBe(true);
+  }, 20_000);
+
+  it('keeps two sessions independent on one agent', async () => {
+    const hub = collectHub();
+    const source = await startSource(hub);
+    const first = await source.newSession({ directory: '/work' });
+    const second = await source.newSession({ directory: '/work' });
+
+    expect(first.sessionId).not.toBe(second.sessionId);
+    expect(source.sessionIds).toEqual(expect.arrayContaining([first.sessionId, second.sessionId]));
+
+    await source.prompt({ sessionId: first.sessionId, messageId: 'msg_a', text: 'hello' });
+    const forFirst = hub.payloads.filter((payload) => payload.data.sessionID === first.sessionId);
+    const forSecond = hub.payloads.filter((payload) => payload.data.sessionID === second.sessionId);
+    expect(forFirst.length).toBeGreaterThan(0);
+    expect(forSecond).toEqual([]);
+
+    await source.closeSession(first.sessionId);
+    expect(source.sessionIds).toEqual([second.sessionId]);
   }, 20_000);
 });
