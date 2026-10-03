@@ -208,6 +208,7 @@ import { LinkedReferenceRow } from './composer/ui/LinkedReferenceRow';
 import { RevertedMessageDock } from './composer/ui/RevertedMessageDock';
 import { SessionSuggestionChip } from '@/components/chat/SessionSuggestionChip';
 import { SessionDoneHintRow } from '@/components/chat/SessionDoneHintRow';
+import { AcpSessionBar } from '@/components/chat/AcpSessionBar';
 import { FormDock } from '@/components/chat/FormDock';
 import { PermissionDock } from '@/components/chat/PermissionDock';
 import { SessionGoalRow } from '@/components/chat/SessionGoalRow';
@@ -3503,8 +3504,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     ) : null;
     // Null exactly when the suggestion row alone would have been: the mobile
     // pill picks its shape from whether a top row exists.
-    const composerTopRows = doneHintRow || suggestionRow ? (
-        <>
+    // ACP-bound chats get their agent/model controls here, above the composer.
+    const acpSessionBar = !isBtwActive ? <AcpSessionBar sessionId={currentSessionId} /> : null;
+    const composerTopRows = doneHintRow || suggestionRow ? (        <>
             {doneHintRow}
             {suggestionRow}
         </>
@@ -3851,6 +3853,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                     <div className={cn('relative flex flex-col', isComposerExpanded && 'flex-1 min-h-0')}>
                     <div className={cn("overflow-hidden", isComposerExpanded && 'flex flex-1 min-h-0 flex-col')}>
                         {parallel.isActive ? <ParallelComposerStrip parallel={parallel} project={parallelProjectRef} /> : null}
+                        {acpSessionBar}
                         {composerTopRows}
                         {isMobile && isBtwActive ? (
                             <div className="scrollbar-none relative z-10 flex items-center gap-x-2 overflow-x-auto px-3 pb-0.5 pt-1.5">
