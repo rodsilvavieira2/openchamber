@@ -308,8 +308,16 @@ npx claude-code-acp
    restart and confirm no orphan remains (startup reaper).
 
 Not done in this cycle (Should scope from #2010): `session/list`/`resume` in
-the sidebar, remote HTTP/WS transports, models/config-option pickers, plans,
+the sidebar, remote HTTP/WS transports, plans,
 slash commands, MCP forwarding, multi-agent orchestration.
+
+Done after the first MVP cut: per-session modes/config options. The server
+keeps each session's `modes`/`configOptions` snapshot (from `session/new`,
+`set_*` responses, and `*_update` notifications) and serves it at
+`POST /api/agent/acp/session/options|mode|config`; the chat renders an
+`AcpSessionBar` above the composer for ACP-bound sessions with the agent chip,
+a mode select, and one select per select-type config option (e.g. the agent's
+model list). No provider-specific code: whatever the agent advertises appears.
 
 ## 14. Open questions
 
